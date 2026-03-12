@@ -4,14 +4,78 @@ import 'package:go_router/go_router.dart';
 
 import '../../shared/theme/app_theme.dart';
 import '../../shared/widgets/monty_character.dart';
+import '../profile/profile_provider.dart';
+import '../scenario/scenario_screen.dart';
 import 'conversation_provider.dart';
 
-class ConversationScreen extends ConsumerWidget {
+class ConversationScreen extends ConsumerStatefulWidget {
   const ConversationScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ConversationScreen> createState() => _ConversationScreenState();
+}
+
+class _ConversationScreenState extends ConsumerState<ConversationScreen> {
+  bool _sessionStarted = false;
+  final _textController = TextEditingController();
+  bool _showTextInput = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _startSession();
+    });
+  }
+
+  @override
+  void dispose() {
+    _textController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _startSession() async {
+    if (_sessionStarted) return;
+    _sessionStarted = true;
+
+    final profile = ref.read(childProfileProvider);
+    final scenario = ref.read(selectedScenarioProvider);
+
+    if (profile == null || scenario == null) {
+      context.go('/profile');
+      return;
+    }
+
+    // API key via --dart-define=GEMINI_API_KEY=xxx
+    const apiKey = String.fromEnvironment('GEMINI_API_KEY');
+    if (apiKey.isEmpty) {
+      // Show text-based fallback mode
+      setState(() => _showTextInput = true);
+      return;
+    }
+
+    await ref.read(conversationProvider.notifier).startSession(
+          apiKey: apiKey,
+          profile: profile,
+          scenario: scenario,
+        );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(conversationProvider);
+
+    // Show error snackbar
+    ref.listen<ConversationState>(conversationProvider, (prev, next) {
+      if (next.errorMessage != null && next.errorMessage != prev?.errorMessage) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(next.errorMessage!),
+            backgroundColor: Colors.red.shade400,
+          ),
+        );
+      }
+    });
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -23,9 +87,15 @@ class ConversationScreen extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
               child: Row(
                 children: [
+                  // Toggle text input (debug)
                   IconButton(
-                    onPressed: () {},
-                    icon: const Icon(Icons.pause_circle_outline, size: 28),
+                    onPressed: () {
+                      setState(() => _showTextInput = !_showTextInput);
+                    },
+                    icon: Icon(
+                      _showTextInput ? Icons.mic : Icons.keyboard,
+                      size: 28,
+                    ),
                   ),
                   const Spacer(),
                   IconButton(
@@ -36,7 +106,7 @@ class ConversationScreen extends ConsumerWidget {
               ),
             ),
 
-            // Character area (top 60%)
+            // Character area
             Expanded(
               flex: 6,
               child: Column(
@@ -69,17 +139,59 @@ class ConversationScreen extends ConsumerWidget {
               ),
             ),
 
-            // Status indicator (bottom)
+            // Bottom area: status indicator or text input
             Expanded(
               flex: 2,
-              child: Center(
-                child: _StatusIndicator(state: state.montyState),
-              ),
+              child: _showTextInput
+                  ? _buildTextInput()
+                  : Center(
+                      child: _StatusIndicator(state: state.montyState),
+                    ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildTextInput() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _textController,
+              decoration: InputDecoration(
+                hintText: 'テキストで話す（デバッグ用）',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+              ),
+              onSubmitted: _onSendText,
+            ),
+          ),
+          const SizedBox(width: 8),
+          IconButton.filled(
+            onPressed: () => _onSendText(_textController.text),
+            icon: const Icon(Icons.send),
+            style: IconButton.styleFrom(
+              backgroundColor: AppColors.primary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _onSendText(String text) {
+    if (text.trim().isEmpty) return;
+    ref.read(conversationProvider.notifier).sendText(text.trim());
+    _textController.clear();
   }
 
   void _showEndDialog(BuildContext context) {
@@ -95,6 +207,7 @@ class ConversationScreen extends ConsumerWidget {
           ),
           ElevatedButton(
             onPressed: () {
+              ref.read(conversationProvider.notifier).stopSession();
               Navigator.pop(ctx);
               context.go('/home');
             },
