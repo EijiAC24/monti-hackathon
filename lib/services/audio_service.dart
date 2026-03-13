@@ -1,23 +1,40 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter_pcm_sound/flutter_pcm_sound.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 
-/// Handles microphone recording (16kHz PCM) and audio playback (24kHz PCM).
+/// Handles microphone recording (16kHz PCM) and streaming audio playback (24kHz PCM).
 class AudioService {
   final AudioRecorder _recorder = AudioRecorder();
-  final AudioPlayer _player = AudioPlayer();
   StreamSubscription<List<int>>? _recordSubscription;
   bool _isRecording = false;
   bool _isPlaying = false;
-
-  // Buffered PCM data for current response
-  final List<int> _playbackBuffer = [];
+  bool _pcmPlayerReady = false;
+  int _bufferedBytes = 0; // Track total bytes fed for drain timing
+  DateTime? _playbackStartTime; // When first chunk was fed
 
   bool get isRecording => _isRecording;
   bool get isPlaying => _isPlaying;
+
+  /// Initialize the PCM streaming player for 24kHz mono playback.
+  Future<void> initPlayer() async {
+    if (_pcmPlayerReady) return;
+    try {
+      await FlutterPcmSound.setLogLevel(LogLevel.error);
+      await FlutterPcmSound.setup(
+        sampleRate: 24000,
+        channelCount: 1,
+      );
+      // Feed threshold: request more data when buffer gets low
+      await FlutterPcmSound.setFeedThreshold(8192);
+      _pcmPlayerReady = true;
+      print('[Monti] PCM player initialized (24kHz mono)');
+    } catch (e) {
+      print('[Monti] PCM player init error: $e');
+    }
+  }
 
   /// Request microphone permission.
   Future<bool> requestPermission() async {
@@ -26,8 +43,6 @@ class AudioService {
   }
 
   /// Start recording from microphone. Returns stream of PCM16 chunks.
-  ///
-  /// Each chunk is 16kHz, 16-bit PCM, mono.
   Future<Stream<Uint8List>?> startRecording() async {
     if (_isRecording) return null;
 
@@ -72,34 +87,50 @@ class AudioService {
     await _recorder.stop();
   }
 
-  /// Add audio chunk to playback buffer.
-  void addPlaybackChunk(Uint8List pcmData) {
-    _playbackBuffer.addAll(pcmData);
+  /// Feed a PCM audio chunk for immediate streaming playback.
+  /// Call this for each GeminiAudioChunk as it arrives.
+  Future<void> feedPlaybackChunk(Uint8List pcmData) async {
+    if (!_pcmPlayerReady) await initPlayer();
+    _isPlaying = true;
+    _playbackStartTime ??= DateTime.now();
+    _bufferedBytes += pcmData.length;
+    // Wrap raw PCM bytes directly as PcmArrayInt16 (little-endian 16-bit)
+    final pcmArray = PcmArrayInt16(bytes: pcmData.buffer.asByteData(
+      pcmData.offsetInBytes,
+      pcmData.lengthInBytes,
+    ));
+    await FlutterPcmSound.feed(pcmArray);
   }
 
-  /// Play buffered audio as WAV (24kHz PCM mono).
-  Future<void> playBuffer() async {
-    if (_playbackBuffer.isEmpty) return;
+  /// Signal that the current response is complete.
+  /// Waits briefly for remaining buffer to play out.
+  /// Returns estimated remaining playback duration in milliseconds.
+  int get remainingPlaybackMs {
+    if (!_isPlaying || _playbackStartTime == null) return 0;
+    // Total audio duration: 24kHz, 16-bit mono = 48000 bytes/sec
+    final totalAudioMs = (_bufferedBytes * 1000) ~/ 48000;
+    // Time already elapsed since playback started
+    final elapsedMs = DateTime.now().difference(_playbackStartTime!).inMilliseconds;
+    final remaining = totalAudioMs - elapsedMs;
+    return remaining > 0 ? remaining : 0;
+  }
 
-    _isPlaying = true;
-    final wavBytes = _createWav(
-      Uint8List.fromList(_playbackBuffer),
-      sampleRate: 24000,
-    );
-    _playbackBuffer.clear();
-
-    await _player.play(BytesSource(wavBytes));
-
-    // Wait for playback to complete
-    await _player.onPlayerComplete.first;
+  /// Mark playback as finished and reset buffer counter.
+  void markPlaybackDone() {
+    _bufferedBytes = 0;
+    _playbackStartTime = null;
     _isPlaying = false;
   }
 
-  /// Stop current playback (for barge-in).
+  /// Stop current playback immediately (for barge-in).
   Future<void> stopPlayback() async {
     _isPlaying = false;
-    _playbackBuffer.clear();
-    await _player.stop();
+    _bufferedBytes = 0;
+    _playbackStartTime = null;
+    if (_pcmPlayerReady) {
+      await FlutterPcmSound.release();
+      _pcmPlayerReady = false;
+    }
   }
 
   /// Clean up resources.
@@ -107,66 +138,8 @@ class AudioService {
     await stopRecording();
     await stopPlayback();
     _recorder.dispose();
-    _player.dispose();
-  }
-
-  /// Create WAV file bytes from raw PCM data.
-  Uint8List _createWav(Uint8List pcmData, {required int sampleRate}) {
-    const channels = 1;
-    const bitsPerSample = 16;
-    final byteRate = sampleRate * channels * bitsPerSample ~/ 8;
-    final blockAlign = channels * bitsPerSample ~/ 8;
-    final dataSize = pcmData.length;
-    final fileSize = 36 + dataSize;
-
-    final buffer = ByteData(44 + dataSize);
-    var offset = 0;
-
-    // RIFF header
-    buffer.setUint8(offset++, 0x52); // R
-    buffer.setUint8(offset++, 0x49); // I
-    buffer.setUint8(offset++, 0x46); // F
-    buffer.setUint8(offset++, 0x46); // F
-    buffer.setUint32(offset, fileSize, Endian.little);
-    offset += 4;
-    buffer.setUint8(offset++, 0x57); // W
-    buffer.setUint8(offset++, 0x41); // A
-    buffer.setUint8(offset++, 0x56); // V
-    buffer.setUint8(offset++, 0x45); // E
-
-    // fmt chunk
-    buffer.setUint8(offset++, 0x66); // f
-    buffer.setUint8(offset++, 0x6D); // m
-    buffer.setUint8(offset++, 0x74); // t
-    buffer.setUint8(offset++, 0x20); // (space)
-    buffer.setUint32(offset, 16, Endian.little); // chunk size
-    offset += 4;
-    buffer.setUint16(offset, 1, Endian.little); // PCM format
-    offset += 2;
-    buffer.setUint16(offset, channels, Endian.little);
-    offset += 2;
-    buffer.setUint32(offset, sampleRate, Endian.little);
-    offset += 4;
-    buffer.setUint32(offset, byteRate, Endian.little);
-    offset += 4;
-    buffer.setUint16(offset, blockAlign, Endian.little);
-    offset += 2;
-    buffer.setUint16(offset, bitsPerSample, Endian.little);
-    offset += 2;
-
-    // data chunk
-    buffer.setUint8(offset++, 0x64); // d
-    buffer.setUint8(offset++, 0x61); // a
-    buffer.setUint8(offset++, 0x74); // t
-    buffer.setUint8(offset++, 0x61); // a
-    buffer.setUint32(offset, dataSize, Endian.little);
-    offset += 4;
-
-    // PCM data
-    for (var i = 0; i < pcmData.length; i++) {
-      buffer.setUint8(offset++, pcmData[i]);
+    if (_pcmPlayerReady) {
+      await FlutterPcmSound.release();
     }
-
-    return buffer.buffer.asUint8List();
   }
 }

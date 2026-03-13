@@ -7,11 +7,13 @@ enum MontyState { idle, listening, thinking, talking, happy }
 class MontyCharacter extends StatefulWidget {
   final MontyState state;
   final double size;
+  final String emoji;
 
   const MontyCharacter({
     super.key,
     this.state = MontyState.idle,
     this.size = 200,
+    this.emoji = '🐻',
   });
 
   @override
@@ -81,18 +83,41 @@ class _MontyCharacterState extends State<MontyCharacter>
   }
 
   Widget _buildCharacter() {
+    final circleSize = widget.size * 0.75;
     return SizedBox(
       width: widget.size,
       height: widget.size,
       child: Stack(
         alignment: Alignment.center,
         children: [
+          // Outer glow
           Container(
-            width: widget.size * 0.75,
-            height: widget.size * 0.75,
+            width: circleSize + 16,
+            height: circleSize + 16,
             decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.15),
               shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: [
+                  AppColors.primary.withValues(alpha: 0.08),
+                  AppColors.primary.withValues(alpha: 0.0),
+                ],
+              ),
+            ),
+          ),
+          // Main circle with gradient
+          Container(
+            width: circleSize,
+            height: circleSize,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  AppColors.primaryPale,
+                  AppColors.primaryLight.withValues(alpha: 0.3),
+                ],
+              ),
             ),
           ),
           Text(
@@ -106,11 +131,8 @@ class _MontyCharacterState extends State<MontyCharacter>
 
   String _getFaceEmoji() {
     return switch (widget.state) {
-      MontyState.idle => '🐻',
-      MontyState.listening => '🐻',
-      MontyState.thinking => '🤔',
-      MontyState.talking => '🐻',
       MontyState.happy => '🎉',
+      _ => widget.emoji,
     };
   }
 }

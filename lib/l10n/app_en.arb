@@ -1,0 +1,103 @@
+{
+  "@@locale": "en",
+  "appTitle": "Monti",
+
+  "characterName": "Monty",
+
+  "profileTitle": "Your Child's Profile",
+  "profileNameLabel": "Nickname",
+  "profileNameHint": "Enter nickname",
+  "profileAgeLabel": "Age",
+  "profileInterestsLabel": "Interests & Favorites",
+  "profileInterestsHint": "e.g. Dinosaurs, Princess, Soccer",
+  "profileNext": "Next →",
+
+  "interestDinosaurs": "Dinosaurs",
+  "interestPrincess": "Princess",
+  "interestCars": "Cars",
+  "interestAnimals": "Animals",
+  "interestSports": "Sports",
+  "interestDrawing": "Drawing",
+  "interestSweets": "Sweets",
+  "interestSpace": "Space",
+
+  "scenarioTitle": "What to tell\n{nickname}?",
+  "@scenarioTitle": {
+    "placeholders": {
+      "nickname": {"type": "String"}
+    }
+  },
+  "scenarioTimerLabel": "Call delay",
+  "scenarioImmediate": "Now",
+  "scenarioSeconds": "{count}s",
+  "@scenarioSeconds": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "scenarioMinutes": "{count}m",
+  "@scenarioMinutes": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "scenarioStart": "Set it up 📞",
+
+  "scenarioBrushingTitle": "Let's brush teeth",
+  "scenarioBrushingGoal": "Brush teeth on their own",
+  "scenarioCleanupTitle": "Let's clean up",
+  "scenarioCleanupGoal": "Start tidying up on their own",
+  "scenarioBedtimeTitle": "Bedtime",
+  "scenarioBedtimeGoal": "Get ready for bed calmly",
+
+  "waitingTitle": "Monty is calling\n{nickname}",
+  "@waitingTitle": {
+    "placeholders": {
+      "nickname": {"type": "String"}
+    }
+  },
+  "waitingCountdownSuffix": "seconds until the call",
+  "waitingParentNote": "When the phone rings,\nplease hand it to your child",
+  "waitingCancel": "Cancel",
+
+  "incomingCallCalling": "Calling {nickname}...",
+  "@incomingCallCalling": {
+    "placeholders": {
+      "nickname": {"type": "String"}
+    }
+  },
+  "incomingCallAnswer": "Tap to answer",
+
+  "homeBubble": "{nickname},\nlet's chat!",
+  "@homeBubble": {
+    "placeholders": {
+      "nickname": {"type": "String"}
+    }
+  },
+  "homeTalkButton": "Talk",
+
+  "conversationConnecting": "Connecting...",
+  "conversationListening": "Listening...",
+  "conversationThinking": "Hmm...",
+  "conversationTalkPrompt": "Go ahead, talk!",
+  "conversationTextHint": "Type to talk (debug)",
+  "conversationEndTitle": "End the call?",
+  "conversationEndKeep": "Keep talking",
+  "conversationEndStop": "End",
+  "conversationMicRequired": "Microphone permission is required",
+
+  "statusListening": "Listening... 🎧",
+  "statusThinking": "Thinking...",
+  "statusTalking": "Talking...",
+  "statusHappy": "Yay! ✨",
+  "statusIdle": "Go ahead!",
+
+  "settingsTitle": "Settings",
+  "settingsLanguageLabel": "Language",
+  "settingsEditProfile": "Edit Profile",
+
+  "scenarioCustomTitle": "Custom",
+  "scenarioCustomGoal": "Your own mission",
+  "scenarioCustomHint": "e.g. Eat your carrots",
+  "scenarioCustomLabel": "What to ask the child?"
+}

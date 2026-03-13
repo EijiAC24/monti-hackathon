@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../l10n/app_localizations.dart';
+import '../../models/child_profile.dart';
 import '../../shared/theme/app_theme.dart';
 import '../../shared/widgets/monty_character.dart';
 import '../profile/profile_provider.dart';
@@ -11,90 +13,114 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
     final profile = ref.watch(childProfileProvider);
     final nickname = profile?.nickname ?? '';
 
     return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Top bar
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                children: [
-                  IconButton(
-                    onPressed: () => context.go('/scenario'),
-                    icon: const Icon(Icons.arrow_back_rounded),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    onPressed: () {},
-                    icon: const Icon(
-                      Icons.lock_outline,
-                      color: AppColors.textSecondary,
+      body: Container(
+        decoration: const BoxDecoration(gradient: AppColors.warmGradient),
+        child: SafeArea(
+          child: Column(
+            children: [
+              // Top bar
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 8),
+                child: Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () => context.go('/scenario'),
+                      behavior: HitTestBehavior.opaque,
+                      child: const SizedBox(
+                        width: 44,
+                        height: 44,
+                        child: Center(
+                          child: Icon(Icons.arrow_back_rounded,
+                              color: AppColors.textSecondary),
+                        ),
+                      ),
                     ),
-                  ),
-                ],
+                    const Spacer(),
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      child: const SizedBox(
+                        width: 44,
+                        height: 44,
+                        child: Center(
+                          child: Icon(Icons.lock_outline_rounded,
+                              size: 20,
+                              color: AppColors.textSecondary),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
 
-            const Spacer(),
+              const Spacer(),
 
-            // Character
-            const MontyCharacter(state: MontyState.idle, size: 200),
-            const SizedBox(height: 16),
-            Text(
-              'モンティ',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: AppColors.primary,
-                  ),
-            ),
-            const SizedBox(height: 12),
-
-            // Speech bubble
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 40),
-              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.1),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
+              // Character
+              MontyCharacter(
+                  state: MontyState.idle,
+                  size: 200,
+                  emoji: profile?.emoji ?? '🐻'),
+              const SizedBox(height: 12),
+              Text(
+                ChildProfile.nameForEmoji(profile?.emoji ?? '🐻'),
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
               ),
-              child: Text(
-                '$nicknameちゃん、\nおはなししよう！',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleLarge,
+              const SizedBox(height: 16),
+
+              // Speech bubble
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 40),
+                padding: const EdgeInsets.symmetric(
+                    vertical: 14, horizontal: 24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(AppRadius.lg),
+                  boxShadow: AppShadows.soft(),
+                ),
+                child: Text(
+                  l10n.homeBubble(nickname),
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
               ),
-            ),
 
-            const Spacer(),
+              const Spacer(),
 
-            // Talk button
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 40),
-              child: SizedBox(
-                height: 80,
-                child: ElevatedButton.icon(
-                  onPressed: () => context.go('/conversation'),
-                  icon: const Icon(Icons.mic, size: 28),
-                  label: const Text('はなす', style: TextStyle(fontSize: 24)),
-                  style: ElevatedButton.styleFrom(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(24),
+              // Talk button
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 40),
+                child: Container(
+                  height: 72,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(AppRadius.xl),
+                    boxShadow: AppShadows.button,
+                  ),
+                  child: ElevatedButton.icon(
+                    onPressed: () => context.go('/conversation'),
+                    icon: const Icon(Icons.mic_rounded, size: 28),
+                    label: Text(l10n.homeTalkButton,
+                        style: const TextStyle(fontSize: 22)),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 72),
+                      shape: RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(AppRadius.xl),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(height: 48),
-          ],
+              const SizedBox(height: 48),
+            ],
+          ),
         ),
       ),
     );

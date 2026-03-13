@@ -1,0 +1,73 @@
+{
+  "@@locale": "ja",
+  "appTitle": "モンティ",
+
+  "characterName": "モンティ",
+
+  "profileTitle": "お子さんのプロフィール",
+  "profileNameLabel": "ニックネーム",
+  "profileNameHint": "呼び名を入力",
+  "profileAgeLabel": "年齢",
+  "profileInterestsLabel": "好きなもの・興味",
+  "profileInterestsHint": "例: 恐竜、プリンセス、サッカー",
+  "profileNext": "次へ →",
+
+  "interestDinosaurs": "恐竜",
+  "interestPrincess": "プリンセス",
+  "interestCars": "車",
+  "interestAnimals": "動物",
+  "interestSports": "スポーツ",
+  "interestDrawing": "お絵かき",
+  "interestSweets": "お菓子",
+  "interestSpace": "宇宙",
+
+  "scenarioTitle": "{nickname}に\n何を伝える？",
+  "scenarioTimerLabel": "何秒後にかける？",
+  "scenarioImmediate": "すぐ",
+  "scenarioSeconds": "{count}秒",
+  "scenarioMinutes": "{count}分",
+  "scenarioStart": "セットする 📞",
+
+  "scenarioBrushingTitle": "歯磨きしよう",
+  "scenarioBrushingGoal": "自分から歯磨きに行く",
+  "scenarioCleanupTitle": "お片付けしよう",
+  "scenarioCleanupGoal": "自分から片付けを始める",
+  "scenarioBedtimeTitle": "おやすみ",
+  "scenarioBedtimeGoal": "落ち着いて寝る準備をする",
+
+  "waitingTitle": "{nickname}に\n電話をかけます",
+  "waitingCountdownSuffix": "秒後にかかってきます",
+  "waitingParentNote": "電話が鳴ったら\nお子さんに渡してください",
+  "waitingCancel": "キャンセル",
+
+  "incomingCallCalling": "{nickname}ちゃんに でんわ...",
+  "incomingCallAnswer": "タップして でんわにでる",
+
+  "homeBubble": "{nickname}ちゃん、\nおはなししよう！",
+  "homeTalkButton": "はなす",
+
+  "conversationConnecting": "つないでるよ...",
+  "conversationListening": "きいてるよ...",
+  "conversationThinking": "うーんと...",
+  "conversationTalkPrompt": "はなしてね！",
+  "conversationTextHint": "テキストで話す（デバッグ用）",
+  "conversationEndTitle": "通話を終了しますか？",
+  "conversationEndKeep": "続ける",
+  "conversationEndStop": "終了",
+  "conversationMicRequired": "マイクの許可が必要です",
+
+  "statusListening": "きいてるよ... 🎧",
+  "statusThinking": "うーんと...",
+  "statusTalking": "おはなしちゅう...",
+  "statusHappy": "やったー！✨",
+  "statusIdle": "はなしてね！",
+
+  "settingsTitle": "設定",
+  "settingsLanguageLabel": "言語",
+  "settingsEditProfile": "プロフィール編集",
+
+  "scenarioCustomTitle": "カスタム",
+  "scenarioCustomGoal": "自由にミッションを作成",
+  "scenarioCustomHint": "例: にんじんを食べる",
+  "scenarioCustomLabel": "何をお願いする？"
+}

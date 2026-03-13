@@ -14,12 +14,14 @@ class ConversationState {
   final MontyState montyState;
   final String currentText;
   final bool isConnected;
+  final bool goalComplete;
   final String? errorMessage;
 
   const ConversationState({
     this.montyState = MontyState.idle,
     this.currentText = '',
     this.isConnected = false,
+    this.goalComplete = false,
     this.errorMessage,
   });
 
@@ -27,12 +29,14 @@ class ConversationState {
     MontyState? montyState,
     String? currentText,
     bool? isConnected,
+    bool? goalComplete,
     String? errorMessage,
   }) {
     return ConversationState(
       montyState: montyState ?? this.montyState,
       currentText: currentText ?? this.currentText,
       isConnected: isConnected ?? this.isConnected,
+      goalComplete: goalComplete ?? this.goalComplete,
       errorMessage: errorMessage,
     );
   }
@@ -44,47 +48,83 @@ class ConversationNotifier extends StateNotifier<ConversationState> {
   StreamSubscription<GeminiLiveEvent>? _eventSub;
   StreamSubscription<Uint8List>? _audioSub;
   final StringBuffer _textBuffer = StringBuffer();
+  bool _isSpeaking = false; // true while Monty is speaking - mutes mic input to Gemini
+  bool _goalDetected = false;
+  int _turnId = 0; // Tracks current turn to invalidate stale unmute timers
+  String _languageCode = 'ja';
+  String _charName = 'Monty';
+  String _childName = '';
+  Timer? _maxTimer; // Safety timer to auto-end conversation
+  static const _maxDuration = Duration(minutes: 3);
 
   ConversationNotifier() : super(const ConversationState());
 
   /// Start a conversation session.
   Future<void> startSession({
-    required String apiKey,
+    required String accessToken,
+    required String projectId,
+    required String location,
     required ChildProfile profile,
     required Scenario scenario,
+    String languageCode = 'ja',
   }) async {
+    print('[Monti] startSession called');
+
     // Request mic permission
     final granted = await _audio.requestPermission();
     if (!granted) {
-      state = state.copyWith(
-        errorMessage: 'マイクの許可が必要です',
-      );
+      state = state.copyWith(errorMessage: 'mic_required');
       return;
     }
 
+    // Initialize streaming player
+    await _audio.initPlayer();
+
     state = state.copyWith(
       montyState: MontyState.thinking,
-      currentText: 'つないでるよ...',
+      currentText: '',
     );
 
     // Build system prompt
+    _languageCode = languageCode;
+    _charName = ChildProfile.nameForEmoji(profile.emoji);
+    _childName = profile.nickname;
     final systemPrompt = SystemPromptBuilder.build(
       profile: profile,
       scenario: scenario,
+      languageCode: languageCode,
     );
 
     // Listen for Gemini events
     _eventSub = _gemini.events.listen(_handleGeminiEvent);
 
-    // Connect to Gemini
+    // Safety timer: auto-end after max duration
+    _maxTimer?.cancel();
+    _maxTimer = Timer(_maxDuration, () {
+      print('[Monti] Max duration reached, ending session');
+      _triggerGoalComplete();
+    });
+
+    // Connect to Gemini with character-specific voice
+    final voiceName = ChildProfile.voiceForEmoji(profile.emoji);
     await _gemini.connect(
-      apiKey: apiKey,
+      accessToken: accessToken,
+      projectId: projectId,
+      location: location,
       systemPrompt: systemPrompt,
+      voiceName: voiceName,
     );
+  }
+
+  /// Reset state to initial (used after celebration screen).
+  void resetState() {
+    state = const ConversationState();
   }
 
   /// Stop the conversation session.
   Future<void> stopSession() async {
+    _maxTimer?.cancel();
+    _maxTimer = null;
     await _audioSub?.cancel();
     _audioSub = null;
     await _eventSub?.cancel();
@@ -93,7 +133,11 @@ class ConversationNotifier extends StateNotifier<ConversationState> {
     await _audio.stopPlayback();
     await _gemini.disconnect();
 
-    state = const ConversationState();
+    // Keep goalComplete if it was set, so celebration screen stays visible
+    final wasGoalComplete = state.goalComplete;
+    state = wasGoalComplete
+        ? const ConversationState(goalComplete: true)
+        : const ConversationState();
   }
 
   /// Send a text message (for testing without audio).
@@ -101,21 +145,33 @@ class ConversationNotifier extends StateNotifier<ConversationState> {
     _gemini.sendText(text);
     state = state.copyWith(
       montyState: MontyState.thinking,
-      currentText: 'うーんと...',
+      currentText: '',
     );
   }
 
   Future<void> _startListening() async {
     final stream = await _audio.startRecording();
-    if (stream == null) return;
+    if (stream == null) {
+      print('[Monti] startRecording returned null');
+      return;
+    }
+    print('[Monti] Mic started');
 
     state = state.copyWith(
       montyState: MontyState.listening,
-      currentText: 'きいてるよ...',
+      currentText: '',
     );
 
+    int chunkCount = 0;
     _audioSub = stream.listen((chunk) {
-      _gemini.sendAudio(chunk);
+      // Don't send mic audio while Monty is speaking - prevents echo barge-in
+      if (!_isSpeaking) {
+        _gemini.sendAudio(chunk);
+        chunkCount++;
+        if (chunkCount % 50 == 1) {
+          print('[Monti] Sending audio chunk #$chunkCount (${chunk.length} bytes)');
+        }
+      }
     });
   }
 
@@ -123,45 +179,79 @@ class ConversationNotifier extends StateNotifier<ConversationState> {
     await _audioSub?.cancel();
     _audioSub = null;
     await _audio.stopRecording();
+    // Give recorder time to fully release before restarting
+    await Future<void>.delayed(const Duration(milliseconds: 200));
   }
 
   void _handleGeminiEvent(GeminiLiveEvent event) {
     switch (event) {
       case GeminiSetupComplete():
+        print('[Monti] Setup complete! Monty speaks first...');
         state = state.copyWith(
           isConnected: true,
-          montyState: MontyState.idle,
-          currentText: 'はなしてね！',
+          montyState: MontyState.thinking,
+          currentText: '',
         );
-        // Start listening for audio input
-        _startListening();
+        // Character initiates the conversation - greet AND ask first question in same turn
+        _gemini.sendText(_languageCode == 'ja'
+            ? '電話がつながったよ。「もしもーし！$_childNameちゃん！$_charNameだよ！」と子供の名前を呼んで挨拶して、すぐにシナリオの最初の質問もしてね。挨拶だけで終わらないで。'
+            : 'The call is connected. Greet with "Hello $_childName! It\'s $_charName!" — always say the child\'s name first. Then immediately ask the scenario\'s first question in the same turn. Do NOT stop after just greeting.');
+        // Don't start mic yet — wait until Monty's first turn completes
 
       case GeminiAudioChunk(pcmData: final data):
-        // Buffer audio for playback
-        _audio.addPlaybackChunk(data);
-        state = state.copyWith(montyState: MontyState.talking);
+        // Reset buffer counter at start of new response
+        if (state.montyState != MontyState.talking) {
+          _audio.markPlaybackDone(); // Reset buffered bytes for new turn
+          state = state.copyWith(montyState: MontyState.talking);
+        }
+        _isSpeaking = true;
+        _audio.feedPlaybackChunk(data);
 
       case GeminiTextChunk(text: final text):
         _textBuffer.write(text);
+        final fullText = _textBuffer.toString();
+        if (fullText.contains('[DONE]')) {
+          _goalDetected = true;
+        }
+        // Strip [DONE] marker from display text
+        final displayText = fullText.replaceAll('[DONE]', '').trim();
         state = state.copyWith(
           montyState: MontyState.talking,
-          currentText: _textBuffer.toString(),
+          currentText: displayText,
         );
 
+      case GeminiToolCall(name: final name):
+        if (name == 'end_conversation') {
+          print('[Monti] Goal achieved via function call! Setting flag.');
+          _goalDetected = true;
+          // Safety: if turnComplete never arrives, trigger after 8 seconds
+          Future<void>.delayed(const Duration(seconds: 8), () {
+            if (_goalDetected) {
+              print('[Monti] Safety trigger: turnComplete not received');
+              _triggerGoalComplete();
+            }
+          });
+        }
+
       case GeminiTurnComplete():
-        // Play buffered audio
-        _playResponseAndResumeMic();
+        print('[Monti] Turn complete');
+        _onTurnComplete();
 
       case GeminiInterrupted():
-        // Barge-in: stop playback and resume listening
-        _audio.stopPlayback();
+        // Barge-in: stop playback immediately
+        print('[Monti] Interrupted (barge-in)');
+        _isSpeaking = false;
+        _audio.stopPlayback().then((_) {
+          _audio.initPlayer(); // Re-init for next response
+        });
         _textBuffer.clear();
         state = state.copyWith(
           montyState: MontyState.listening,
-          currentText: 'きいてるよ...',
+          currentText: '',
         );
 
       case GeminiError(message: final msg):
+        print('[Monti] ERROR: $msg');
         state = state.copyWith(errorMessage: msg);
 
       case GeminiDisconnected():
@@ -173,23 +263,63 @@ class ConversationNotifier extends StateNotifier<ConversationState> {
     }
   }
 
-  Future<void> _playResponseAndResumeMic() async {
-    // Stop mic while playing to avoid feedback
-    await _stopListening();
+  Future<void> _triggerGoalComplete() async {
+    if (state.goalComplete) return; // Already triggered
+    print('[Monti] Goal complete!');
+    _goalDetected = false;
+    _maxTimer?.cancel();
+    // finishPlayback is already called by _onTurnComplete, no need to wait again
+    _isSpeaking = false;
+    print('[Monti] Showing celebration screen');
+    state = state.copyWith(
+      montyState: MontyState.happy,
+      goalComplete: true,
+    );
+    await stopSession();
+  }
 
-    // Play the buffered audio
-    await _audio.playBuffer();
+  Future<void> _onTurnComplete() async {
+    // Check if goal was achieved (via function call or [DONE] marker)
+    if (_goalDetected) {
+      // Wait for goodbye audio to finish before showing celebration
+      final waitMs = _audio.remainingPlaybackMs + 500;
+      print('[Monti] Goal complete! Waiting ${waitMs}ms for goodbye audio');
+      await Future<void>.delayed(Duration(milliseconds: waitMs));
+      _audio.markPlaybackDone();
+      _isSpeaking = false;
+      _triggerGoalComplete();
+      return;
+    }
 
-    // Clear text buffer after playback
+    // Clear text buffer
     _textBuffer.clear();
 
-    // Resume listening
     if (_gemini.isConnected) {
+      // Start mic immediately but keep _isSpeaking=true to mute sending
+      // until speaker finishes draining
+      final drainMs = _audio.remainingPlaybackMs + 500;
+      print('[Monti] Turn done. Mic now, unmute in ${drainMs}ms');
+
+      await _stopListening();
       state = state.copyWith(
-        montyState: MontyState.idle,
-        currentText: 'はなしてね！',
+        montyState: MontyState.listening,
+        currentText: '',
       );
       await _startListening();
+
+      // Unmute after speaker finishes (guarded by turn ID)
+      _turnId++;
+      final expectedTurn = _turnId;
+      Future<void>.delayed(Duration(milliseconds: drainMs), () {
+        // Only unmute if no new turn has started
+        if (_turnId == expectedTurn) {
+          _audio.markPlaybackDone();
+          _isSpeaking = false;
+          print('[Monti] Speaker done, sending mic audio now');
+        } else {
+          print('[Monti] Skipping stale unmute (turn $expectedTurn, now $_turnId)');
+        }
+      });
     }
   }
 

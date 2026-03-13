@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:web_socket_channel/io.dart';
 
 /// Events emitted by the Gemini Live API session.
 sealed class GeminiLiveEvent {}
@@ -23,6 +23,12 @@ class GeminiInterrupted extends GeminiLiveEvent {}
 
 class GeminiSetupComplete extends GeminiLiveEvent {}
 
+class GeminiToolCall extends GeminiLiveEvent {
+  final String name;
+  final Map<String, dynamic> args;
+  GeminiToolCall(this.name, this.args);
+}
+
 class GeminiError extends GeminiLiveEvent {
   final String message;
   GeminiError(this.message);
@@ -36,49 +42,60 @@ class GeminiDisconnected extends GeminiLiveEvent {}
 /// Input: 16kHz 16-bit PCM mono
 /// Output: 24kHz 16-bit PCM mono
 class GeminiLiveService {
-  static const _model = 'gemini-2.5-flash-preview-native-audio-dialog';
-  static const _wsBase =
-      'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent';
+  static const _model = 'gemini-live-2.5-flash-native-audio';
 
-  WebSocketChannel? _channel;
+  IOWebSocketChannel? _channel;
   final _eventController = StreamController<GeminiLiveEvent>.broadcast();
   bool _isConnected = false;
 
   Stream<GeminiLiveEvent> get events => _eventController.stream;
   bool get isConnected => _isConnected;
 
-  /// Connect to Gemini Live API and send setup message.
+  /// Connect to Gemini Live API via Vertex AI.
   Future<void> connect({
-    required String apiKey,
+    required String accessToken,
+    required String projectId,
+    required String location,
     required String systemPrompt,
-    String voiceName = 'Aoede',
+    String voiceName = 'Zephyr',
   }) async {
     if (_isConnected) await disconnect();
 
-    final uri = Uri.parse('$_wsBase?key=$apiKey');
+    final uri = Uri.parse(
+      'wss://$location-aiplatform.googleapis.com/ws/google.cloud.aiplatform.v1beta1.LlmBidiService/BidiGenerateContent',
+    );
+    print('[Monti] WS URI: $uri');
 
     try {
-      _channel = WebSocketChannel.connect(uri);
+      _channel = IOWebSocketChannel.connect(
+        uri,
+        headers: {'Authorization': 'Bearer $accessToken'},
+      );
       await _channel!.ready;
       _isConnected = true;
+      print('[Monti] WebSocket connected');
 
       // Listen for messages
       _channel!.stream.listen(
         _handleMessage,
         onError: (Object error) {
+          print('[Monti] WS error: $error');
           _eventController.add(GeminiError(error.toString()));
           _isConnected = false;
         },
         onDone: () {
+          final code = _channel?.closeCode;
+          final reason = _channel?.closeReason;
+          print('[Monti] WS closed (code=$code, reason=$reason)');
           _isConnected = false;
           _eventController.add(GeminiDisconnected());
         },
       );
 
-      // Send setup message
+      // Send setup message (matches Google GenAI SDK format)
       _sendJson({
         'setup': {
-          'model': 'models/$_model',
+          'model': 'projects/$projectId/locations/$location/publishers/google/models/$_model',
           'generationConfig': {
             'responseModalities': ['AUDIO'],
             'speechConfig': {
@@ -88,15 +105,36 @@ class GeminiLiveService {
                 },
               },
             },
+            // Disable thinking to reduce latency
+            'thinkingConfig': {
+              'thinkingBudget': 0,
+            },
           },
           'systemInstruction': {
             'parts': [
               {'text': systemPrompt},
             ],
           },
+          'tools': [
+            {
+              'functionDeclarations': [
+                {
+                  'name': 'end_conversation',
+                  'description':
+                      'Call this AFTER saying goodbye when the child has agreed to take action and the conversation goal is achieved.',
+                  'parameters': {
+                    'type': 'object',
+                    'properties': {},
+                  },
+                },
+              ],
+            },
+          ],
         },
       });
+      print('[Monti] Setup message sent');
     } catch (e) {
+      print('[Monti] Connection failed: $e');
       _isConnected = false;
       _eventController.add(GeminiError('Connection failed: $e'));
     }
@@ -156,10 +194,33 @@ class GeminiLiveService {
 
   void _handleMessage(dynamic rawMessage) {
     try {
-      final data = jsonDecode(rawMessage as String) as Map<String, dynamic>;
+      // WebSocket may send String or Uint8List (binary frames)
+      final String msgStr;
+      if (rawMessage is String) {
+        msgStr = rawMessage;
+      } else if (rawMessage is Uint8List) {
+        msgStr = utf8.decode(rawMessage);
+      } else {
+        print('[Monti] Unknown message type: ${rawMessage.runtimeType}');
+        return;
+      }
+      // Log first 500 chars of message for debugging
+      final logLen = msgStr.length > 500 ? 500 : msgStr.length;
+      print('[Monti] WS recv: ${msgStr.substring(0, logLen)}');
+      final data = jsonDecode(msgStr) as Map<String, dynamic>;
+
+      // Server error response
+      if (data.containsKey('error')) {
+        final error = data['error'];
+        final errorMsg = error is Map ? '${error['message'] ?? error}' : '$error';
+        print('[Monti] SERVER ERROR: $errorMsg');
+        _eventController.add(GeminiError('Server: $errorMsg'));
+        return;
+      }
 
       // Setup complete
       if (data.containsKey('setupComplete')) {
+        print('[Monti] Setup complete received!');
         _eventController.add(GeminiSetupComplete());
         return;
       }
@@ -170,6 +231,12 @@ class GeminiLiveService {
         // Interrupted
         if (serverContent['interrupted'] == true) {
           _eventController.add(GeminiInterrupted());
+          return;
+        }
+
+        // Generation complete (informational, ignore)
+        if (serverContent['generationComplete'] == true) {
+          print('[Monti] Generation complete (awaiting turnComplete)');
           return;
         }
 
@@ -199,9 +266,20 @@ class GeminiLiveService {
                 }
               }
 
-              // Text
+              // Function call
+              final functionCall =
+                  partMap['functionCall'] as Map<String, dynamic>?;
+              if (functionCall != null) {
+                final name = functionCall['name'] as String? ?? '';
+                final args = functionCall['args'] as Map<String, dynamic>? ?? {};
+                print('[Monti] TOOL CALL: $name');
+                _eventController.add(GeminiToolCall(name, args));
+              }
+
+              // Text (skip internal thinking)
+              final isThought = partMap['thought'] == true;
               final text = partMap['text'] as String?;
-              if (text != null) {
+              if (text != null && !isThought) {
                 _eventController.add(GeminiTextChunk(text));
               }
             }
@@ -210,9 +288,27 @@ class GeminiLiveService {
         return;
       }
 
-      // Tool call response (P1 - scenario_completed)
-      // TODO: Handle function calling for goal detection
+      // Tool call (sent at top level, not inside serverContent)
+      final toolCall = data['toolCall'] as Map<String, dynamic>?;
+      if (toolCall != null) {
+        final calls = toolCall['functionCalls'] as List<dynamic>?;
+        if (calls != null) {
+          for (final call in calls) {
+            final callMap = call as Map<String, dynamic>;
+            final name = callMap['name'] as String? ?? '';
+            final args = callMap['args'] as Map<String, dynamic>? ?? {};
+            print('[Monti] TOOL CALL (top-level): $name');
+            _eventController.add(GeminiToolCall(name, args));
+          }
+        }
+        return;
+      }
+
+      // Unrecognized message - log it
+      print('[Monti] UNRECOGNIZED MSG keys: ${data.keys.toList()}');
+      print('[Monti] UNRECOGNIZED MSG: $msgStr');
     } catch (e) {
+      print('[Monti] Parse error: $e');
       _eventController.add(GeminiError('Parse error: $e'));
     }
   }
