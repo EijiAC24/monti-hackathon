@@ -153,40 +153,6 @@ class _WaitingScreenState extends ConsumerState<WaitingScreen>
                           ),
                 ),
 
-                const SizedBox(height: 40),
-
-                // Parent note
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppColors.accent.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(AppRadius.md),
-                    border: Border.all(
-                      color: AppColors.accent.withValues(alpha: 0.15),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.info_outline_rounded,
-                          color: AppColors.accent.withValues(alpha: 0.8),
-                          size: 20),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          l10n.waitingParentNote,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodyMedium
-                              ?.copyWith(
-                                color: AppColors.accent,
-                                fontWeight: FontWeight.w600,
-                              ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
                 const Spacer(),
 
                 // Cancel

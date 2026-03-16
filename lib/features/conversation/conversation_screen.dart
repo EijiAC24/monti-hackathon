@@ -119,9 +119,12 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
       return _buildCelebration(context, l10n, emoji);
     }
 
+    // Only show text bubble for connecting or talking states — not listening/thinking
     final displayText = state.currentText.isNotEmpty
         ? state.currentText
-        : _statusText(state.montyState, l10n);
+        : !state.isConnected
+            ? l10n.conversationConnecting
+            : '';
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -162,7 +165,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                     const SizedBox(height: 20),
                     MontyCharacter(
                       state: state.montyState,
-                      size: 180,
+                      size: 220,
                       emoji: ref.watch(childProfileProvider)?.emoji ??
                           '🐻',
                     ),
@@ -204,7 +207,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
               flex: 2,
               child: Center(
                 child: _StatusIndicator(
-                    state: state.montyState, l10n: l10n),
+                    state: state.montyState,
+                    isConnected: state.isConnected,
+                    l10n: l10n),
               ),
             ),
           ],
@@ -362,16 +367,6 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
     });
   }
 
-  String _statusText(MontyState montyState, AppLocalizations l10n) {
-    return switch (montyState) {
-      MontyState.idle => l10n.conversationTalkPrompt,
-      MontyState.listening => l10n.conversationListening,
-      MontyState.thinking => l10n.conversationThinking,
-      MontyState.talking => '',
-      MontyState.happy => '',
-    };
-  }
-
   Future<void> _playFanfare() async {
     final fanfarePlayer = AudioPlayer();
     await fanfarePlayer.setVolume(0.5);
@@ -410,22 +405,52 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
 
 class _StatusIndicator extends StatelessWidget {
   final MontyState state;
+  final bool isConnected;
   final AppLocalizations l10n;
 
-  const _StatusIndicator({required this.state, required this.l10n});
+  const _StatusIndicator({
+    required this.state,
+    required this.isConnected,
+    required this.l10n,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final (icon, text) = switch (state) {
-      MontyState.idle => (Icons.mic_rounded, l10n.statusIdle),
-      MontyState.listening =>
-        (Icons.headphones_rounded, l10n.statusListening),
-      MontyState.thinking =>
-        (Icons.auto_awesome_rounded, l10n.statusThinking),
-      MontyState.talking =>
-        (Icons.volume_up_rounded, l10n.statusTalking),
-      MontyState.happy =>
-        (Icons.celebration_rounded, l10n.statusHappy),
+    // Show "Connecting..." before session is established
+    if (!isConnected) {
+      return AnimatedSwitcher(
+        duration: const Duration(milliseconds: 300),
+        child: Column(
+          key: const ValueKey('connecting'),
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              l10n.conversationConnecting,
+              style: const TextStyle(
+                fontSize: 18,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final (emoji, text) = switch (state) {
+      MontyState.idle => ('🎤', l10n.statusIdle),
+      MontyState.listening => ('🎤', l10n.statusListening),
+      MontyState.thinking => ('✨', l10n.statusThinking),
+      MontyState.talking => ('🔊', l10n.statusTalking),
+      MontyState.happy => ('🎉', l10n.statusHappy),
     };
 
     return AnimatedSwitcher(
@@ -436,12 +461,12 @@ class _StatusIndicator extends StatelessWidget {
         key: ValueKey(state),
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 28, color: AppColors.primary),
+          Text(emoji, style: const TextStyle(fontSize: 48)),
           const SizedBox(height: 8),
           Text(
             text,
             style: const TextStyle(
-              fontSize: 18,
+              fontSize: 16,
               color: AppColors.textSecondary,
             ),
           ),

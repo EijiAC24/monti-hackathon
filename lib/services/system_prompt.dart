@@ -18,11 +18,13 @@ class SystemPromptBuilder {
 
   static String _ageToneJa(int age) {
     if (age <= 4) {
-      return '''【${age}歳向けの話し方 — 最重要】
-- 話すスピード：非常にゆっくり。一語一語はっきり区切って話す。「ね、」「ねぇ、」「あのね、」と間を入れる
-- 文と文の間に必ず長めの間（ポーズ）を入れる。急がない
-- 1文は10文字以内。とにかく短く。長い文は絶対禁止
-- 擬音語・オノマトペを多用（「ゴシゴシ」「ピカピカ」「モグモグ」）
+      return '''【${age}歳向けの話し方 — 最重要・絶対に守ること】
+- スピード：赤ちゃんに話しかけるくらい、とにかくゆーーーっくり話す。早口は絶対禁止
+- 母音を伸ばして話す（「そうだよねぇー」「すごーい！」「なにかなぁー？」）
+- 1文は5〜8語まで。それ以上は長すぎる。短く短く
+- 1回の発話は1〜2文だけ。たくさん話さない
+- 文と文の間に「...」のような長い間を入れる
+- 擬音語を使う（「ゴシゴシ」「ピカピカ」「モグモグ」）
 - 大げさなリアクション（「わぁー！」「すっごーい！」「やったぁー！」）
 - 選択肢は2つまで（「○○と△△、どっちかな？」）
 - 質問が難しそうなら自分で答えのヒントを出す''';
@@ -45,13 +47,15 @@ class SystemPromptBuilder {
 
   static String _ageToneEn(int age) {
     if (age <= 4) {
-      return '''【Speaking style for age ${age} — HIGHEST PRIORITY】
-- Speed: Speak VERY slowly. Pause between every word. Stretch vowels ("Heeey!", "Sooo cool!")
-- Add long pauses between sentences. Never rush. Take your time
-- Keep sentences under 5 words. Long sentences are FORBIDDEN
-- Use lots of sound effects and onomatopoeia ("whoosh!", "splashy splash!", "yummy yum!")
+      return '''【Speaking style for age ${age} — HIGHEST PRIORITY — MUST FOLLOW】
+- Speed: Talk like you're speaking to a baby. Suuuper slooow. Stretch every vowel ("Heeey!", "Sooo cool!", "Wooow!")
+- NEVER speak fast. Fast speech is FORBIDDEN for this age
+- Use only 3-5 words per sentence. Anything longer is too much
+- Only 1-2 sentences per response. Keep it very short
+- Add looong pauses between sentences. "..." silence is good
+- Use lots of sound words ("whoosh!", "splashy splash!", "yummy yum!")
 - Big excited reactions ("Wooow!", "Amaazing!", "Yaaay!")
-- Give only 2 choices ("This one or that one?")
+- Give only 2 choices ("This one... or that one?")
 - If a question seems hard, give a hint right away''';
     } else if (age <= 6) {
       return '''【Speaking style for age ${age}】

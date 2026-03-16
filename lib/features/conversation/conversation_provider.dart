@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/child_profile.dart';
@@ -16,6 +18,7 @@ class ConversationState {
   final bool isConnected;
   final bool goalComplete;
   final String? errorMessage;
+  final double audioLevel; // 0.0 - 1.0, driven by incoming audio chunks
 
   const ConversationState({
     this.montyState = MontyState.idle,
@@ -23,6 +26,7 @@ class ConversationState {
     this.isConnected = false,
     this.goalComplete = false,
     this.errorMessage,
+    this.audioLevel = 0.0,
   });
 
   ConversationState copyWith({
@@ -31,6 +35,7 @@ class ConversationState {
     bool? isConnected,
     bool? goalComplete,
     String? errorMessage,
+    double? audioLevel,
   }) {
     return ConversationState(
       montyState: montyState ?? this.montyState,
@@ -38,6 +43,7 @@ class ConversationState {
       isConnected: isConnected ?? this.isConnected,
       goalComplete: goalComplete ?? this.goalComplete,
       errorMessage: errorMessage,
+      audioLevel: audioLevel ?? this.audioLevel,
     );
   }
 }
@@ -51,9 +57,11 @@ class ConversationNotifier extends StateNotifier<ConversationState> {
   bool _isSpeaking = false; // true while Monty is speaking - mutes mic input to Gemini
   bool _goalDetected = false;
   int _turnId = 0; // Tracks current turn to invalidate stale unmute timers
+  final audioLevel = ValueNotifier<double>(0.0);
   String _languageCode = 'ja';
   String _charName = 'Monty';
   String _childName = '';
+  int _childAge = 5;
   Timer? _maxTimer; // Safety timer to auto-end conversation
   static const _maxDuration = Duration(minutes: 3);
 
@@ -89,6 +97,7 @@ class ConversationNotifier extends StateNotifier<ConversationState> {
     _languageCode = languageCode;
     _charName = ChildProfile.nameForEmoji(profile.emoji);
     _childName = profile.nickname;
+    _childAge = profile.age;
     final systemPrompt = SystemPromptBuilder.build(
       profile: profile,
       scenario: scenario,
@@ -193,9 +202,12 @@ class ConversationNotifier extends StateNotifier<ConversationState> {
           currentText: '',
         );
         // Character initiates the conversation - greet AND ask first question in same turn
+        final slowNote = _childAge <= 4
+            ? (_languageCode == 'ja' ? 'とてもゆっくり話して。' : 'Speak VERY slowly. ')
+            : '';
         _gemini.sendText(_languageCode == 'ja'
-            ? '電話がつながったよ。「もしもーし！$_childNameちゃん！$_charNameだよ！」と子供の名前を呼んで挨拶して、すぐにシナリオの最初の質問もしてね。挨拶だけで終わらないで。'
-            : 'The call is connected. Greet with "Hello $_childName! It\'s $_charName!" — always say the child\'s name first. Then immediately ask the scenario\'s first question in the same turn. Do NOT stop after just greeting.');
+            ? '電話がつながったよ。${slowNote}「もしもーし！$_childNameちゃん！$_charNameだよ！」と子供の名前を呼んで挨拶して、すぐにシナリオの最初の質問もしてね。挨拶だけで終わらないで。'
+            : 'The call is connected. ${slowNote}Greet with "Hello $_childName! It\'s $_charName!" — always say the child\'s name first. Then immediately ask the scenario\'s first question in the same turn. Do NOT stop after just greeting.');
         // Don't start mic yet — wait until Monty's first turn completes
 
       case GeminiAudioChunk(pcmData: final data):
@@ -206,6 +218,14 @@ class ConversationNotifier extends StateNotifier<ConversationState> {
         }
         _isSpeaking = true;
         _audio.feedPlaybackChunk(data);
+        // Calculate audio level from PCM data (RMS of 16-bit samples)
+        final samples = data.buffer.asInt16List(data.offsetInBytes, data.lengthInBytes ~/ 2);
+        double sum = 0;
+        for (final s in samples) {
+          sum += s * s;
+        }
+        final rms = math.sqrt(sum / samples.length) / 32768.0;
+        audioLevel.value = (rms * 4.0).clamp(0.0, 1.0);
 
       case GeminiTextChunk(text: final text):
         _textBuffer.write(text);
@@ -326,6 +346,7 @@ class ConversationNotifier extends StateNotifier<ConversationState> {
   @override
   void dispose() {
     stopSession();
+    audioLevel.dispose();
     _gemini.dispose();
     _audio.dispose();
     super.dispose();

@@ -19,7 +19,7 @@ class ScenarioScreen extends ConsumerStatefulWidget {
 
 class _ScenarioScreenState extends ConsumerState<ScenarioScreen> {
   String? _selectedId;
-  int _delaySeconds = 10;
+  int _delaySeconds = 0;
   String _customText = '';
 
   static const _delayOptions = [0, 10, 30, 60];
