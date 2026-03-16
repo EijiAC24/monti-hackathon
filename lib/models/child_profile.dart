@@ -1,21 +1,50 @@
+import 'dart:typed_data';
+
 class ChildProfile {
   final String nickname;
   final int age;
   final List<String> interests;
   final String emoji;
+  final String characterName; // User-defined character name
+  final Uint8List? characterImage; // AI-generated character image (PNG)
 
   const ChildProfile({
     required this.nickname,
     required this.age,
     required this.interests,
     this.emoji = '🐻',
+    this.characterName = '',
+    this.characterImage,
   });
+
+  ChildProfile copyWith({
+    String? nickname,
+    int? age,
+    List<String>? interests,
+    String? emoji,
+    String? characterName,
+    Uint8List? characterImage,
+  }) {
+    return ChildProfile(
+      nickname: nickname ?? this.nickname,
+      age: age ?? this.age,
+      interests: interests ?? this.interests,
+      emoji: emoji ?? this.emoji,
+      characterName: characterName ?? this.characterName,
+      characterImage: characterImage ?? this.characterImage,
+    );
+  }
+
+  /// Display name: user-defined character name or default from emoji
+  String get displayName =>
+      characterName.isNotEmpty ? characterName : nameForEmoji(emoji);
 
   Map<String, dynamic> toJson() => {
         'nickname': nickname,
         'age': age,
         'interests': interests,
         'emoji': emoji,
+        'characterName': characterName,
       };
 
   factory ChildProfile.fromJson(Map<String, dynamic> json) => ChildProfile(
@@ -23,6 +52,7 @@ class ChildProfile {
         age: json['age'] as int,
         interests: List<String>.from(json['interests'] as List),
         emoji: json['emoji'] as String? ?? '🐻',
+        characterName: json['characterName'] as String? ?? '',
       );
 
   static const availableEmojis = ['🐻', '🐰', '🦁', '🐱', '🐶', '🐼'];

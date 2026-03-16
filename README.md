@@ -16,11 +16,11 @@ Every parent knows the struggle:
 
 This is **Psychological Reactance** (Brehm, 1966) — a well-documented phenomenon where individuals resist perceived threats to their freedom of choice. When parents issue direct commands, children instinctively push back, not because they disagree, but because their autonomy feels threatened.
 
-Existing solutions make this worse. Apps like "Oni Kara Denwa" (鬼から電話, 26M+ downloads in Japan) use **fear-based motivation** — a monster calls to scare children into compliance. Research consistently shows this approach causes harm:
+Parents worldwide resort to threats and fear: *"If you don't brush your teeth, the dentist will pull them out!"* or scary videos and timer apps designed to frighten children into compliance. Research consistently shows these approaches cause harm:
 
 - Fear-based discipline increases anxiety and behavioral problems (Gershoff, 2002)
 - Children disciplined through threats show **1.5× higher risk** of mental health issues (Afifi et al., 2017)
-- Compliance achieved through fear is **temporary** and does not build intrinsic motivation (Ryan & Deci, 2000)
+- Compliance achieved through fear is **temporary** — children obey only when the threat is present but never internalize the behavior (Ryan & Deci, 2000)
 
 ## The Solution
 
@@ -108,10 +108,11 @@ Ryan & Deci's Self-Determination Theory (2000) identifies three basic psychologi
 - **Goal detection** via function calling — conversation automatically concludes when the child commits to action
 - **Character animation** — the character pulses and moves in sync with speech
 
-### Personalization
+### Personalization — Fully AI-Generated
 - **Child profile** — name, age (2–8), and interests customize every conversation
-- **6 AI characters** — each with unique personality, voice, and emoji (🐻🐰🦁🐱🐶🐼)
-- **10 scenario templates** — brushing teeth, tidying up, bedtime, sharing, eating veggies, and more
+- **AI character generation** — describe any character ("a friendly purple dinosaur") and Gemini generates a flat emoji-style avatar on demand. Name it anything you want
+- **6 preset characters** also available as defaults (🐻🐰🦁🐱🐶🐼), each with unique voice
+- **Custom scenarios** — parents can create any mission, not just templates
 - **Bilingual** — full Japanese and English support
 
 ### Conversation Design
@@ -131,34 +132,26 @@ Ryan & Deci's Self-Determination Theory (2000) identifies three basic psychologi
 ## Architecture
 
 ```
-┌─────────────────────────┐
-│   Flutter App            │
-│   (Android / iOS)        │
-│                          │
-│  ┌────────────────────┐  │
-│  │ Audio Input (Mic)   │──┼──── 16kHz PCM mono ────┐
-│  └────────────────────┘  │                          │
-│  ┌────────────────────┐  │                          │  WebSocket
-│  │ Audio Output (Spk)  │◄─┼── 24kHz PCM mono ──────┤  (Vertex AI)
-│  └────────────────────┘  │                          │
-│  ┌────────────────────┐  │                          │
-│  │ Conversation State  │  │                          │
-│  │ (Riverpod)          │  │                          │
-│  └────────────────────┘  │                          │
-└─────────────────────────┘                          │
-                                                      ▼
-                              ┌──────────────────────────────┐
-                              │  Vertex AI (Google Cloud)      │
-                              │                                │
-                              │  Gemini Live API               │
-                              │  gemini-live-2.5-flash-        │
-                              │  native-audio (GA)             │
-                              │                                │
-                              │  • Native audio processing     │
-                              │  • VAD & barge-in              │
-                              │  • Function calling            │
-                              │  • System prompt + tools       │
-                              └──────────────────────────────┘
+┌──────────────────────────┐
+│   Flutter App             │
+│   (Android / iOS)         │
+│                           │
+│  ┌─────────────────────┐  │         ┌──────────────────────┐
+│  │ Audio Input (Mic)    │──┼── WS ──│  Vertex AI            │
+│  │ Audio Output (Spk)   │◄─┼── WS ──│  Gemini Live API      │
+│  └─────────────────────┘  │         │  (Native Audio GA)    │
+│                           │         │  • VAD & barge-in     │
+│  ┌─────────────────────┐  │         │  • Function calling   │
+│  │ Character Generator  │──┼── HTTP─│  • Imagen 3           │
+│  └─────────────────────┘  │         └──────────────────────┘
+│                           │                    ▲
+│  ┌─────────────────────┐  │         ┌──────────┴───────────┐
+│  │ Token Manager        │──┼── HTTP─│  Cloud Run            │
+│  └─────────────────────┘  │         │  (Token Server)       │
+└──────────────────────────┘         │  • Auth token provider │
+                                      │  • Image generation   │
+                                      │  • Service account    │
+                                      └──────────────────────┘
 ```
 
 ## Tech Stack
@@ -167,7 +160,8 @@ Ryan & Deci's Self-Determination Theory (2000) identifies three basic psychologi
 |-------|-----------|---------|
 | **Client** | Flutter (Dart) | Cross-platform mobile app |
 | **AI Model** | Gemini Live 2.5 Flash Native Audio (GA) | Real-time voice conversation |
-| **Cloud** | Vertex AI (Google Cloud) | Model hosting & API |
+| **Image Gen** | Gemini 3.1 Flash Image Preview | AI character avatar generation |
+| **Cloud** | Vertex AI + Cloud Run (Google Cloud) | Model hosting, token server, image generation |
 | **State** | Riverpod | Reactive state management |
 | **Routing** | go_router | Declarative navigation |
 | **Audio In** | record (Flutter package) | 16kHz PCM microphone capture |
@@ -252,6 +246,12 @@ lib/
 ---
 
 ## Key Technical Decisions
+
+### Cloud Run Backend
+
+The Cloud Run service (`cloud-run-token-server/`) serves two purposes:
+1. **Token provider** — issues fresh Vertex AI access tokens using service account credentials, so the mobile app never needs embedded keys
+2. **Character image generation** — proxies Imagen 3 API calls to generate custom character avatars from text descriptions
 
 ### Why Vertex AI (GA) over Google AI?
 

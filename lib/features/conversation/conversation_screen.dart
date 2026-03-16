@@ -195,6 +195,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                       size: 220,
                       emoji: ref.watch(childProfileProvider)?.emoji ??
                           '🐻',
+                      characterImage:
+                          ref.watch(childProfileProvider)?.characterImage,
                     ),
                     const SizedBox(height: 20),
                     AnimatedSwitcher(

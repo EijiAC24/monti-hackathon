@@ -1,7 +1,11 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:http/http.dart' as http;
 
 import '../../l10n/app_localizations.dart';
 import '../../models/child_profile.dart';
@@ -18,10 +22,14 @@ class ProfileScreen extends ConsumerStatefulWidget {
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final _nicknameController = TextEditingController();
   final _interestsController = TextEditingController();
+  final _characterPromptController = TextEditingController();
+  final _characterNameController = TextEditingController();
   final _voicePlayer = AudioPlayer();
   int _selectedAge = 4;
   final Set<String> _selectedInterests = {};
   String _selectedEmoji = '🐻';
+  Uint8List? _generatedImage;
+  bool _isGenerating = false;
   bool _initialized = false;
 
   List<(String, String Function(AppLocalizations))> get _interests => [
@@ -44,6 +52,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   void dispose() {
     _nicknameController.dispose();
     _interestsController.dispose();
+    _characterPromptController.dispose();
+    _characterNameController.dispose();
     _voicePlayer.dispose();
     super.dispose();
   }
@@ -55,6 +65,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     _selectedAge = profile.age;
     _selectedEmoji = profile.emoji;
     _selectedInterests.addAll(profile.interests);
+    _generatedImage = profile.characterImage;
+    _characterNameController.text = profile.characterName;
   }
 
   @override
@@ -87,24 +99,75 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     child: Column(
                       children: [
                         const SizedBox(height: 4),
-                        // Character selector
+                        // Character avatar with edit badge
                         GestureDetector(
-                          onTap: _showEmojiPicker,
-                          child: Container(
-                            width: 80,
-                            height: 80,
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [AppColors.primaryPale, Color(0xFFFFE8D0)],
-                              ),
-                              shape: BoxShape.circle,
-                              boxShadow: AppShadows.card,
-                            ),
-                            child: Center(
-                              child: Text(_selectedEmoji,
-                                  style: const TextStyle(fontSize: 42)),
+                          onTap: () => context.go('/settings'),
+                          child: SizedBox(
+                            width: 100,
+                            height: 100,
+                            child: Stack(
+                              children: [
+                                // Avatar circle with outline
+                                Center(
+                                  child: Container(
+                                    width: 88,
+                                    height: 88,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: AppColors.primary,
+                                        width: 2.5,
+                                      ),
+                                      boxShadow: AppShadows.card,
+                                    ),
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        gradient: const LinearGradient(
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                          colors: [AppColors.primaryPale, Color(0xFFFFE8D0)],
+                                        ),
+                                      ),
+                                      child: _generatedImage != null
+                                          ? ClipOval(
+                                              child: Image.memory(
+                                                _generatedImage!,
+                                                width: 88,
+                                                height: 88,
+                                                fit: BoxFit.cover,
+                                              ),
+                                            )
+                                          : Center(
+                                              child: Text(_selectedEmoji,
+                                                  style: const TextStyle(fontSize: 44)),
+                                            ),
+                                    ),
+                                  ),
+                                ),
+                                // Edit badge
+                                Positioned(
+                                  right: 0,
+                                  bottom: 0,
+                                  child: Container(
+                                    width: 30,
+                                    height: 30,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primary,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: Colors.white,
+                                        width: 2,
+                                      ),
+                                    ),
+                                    child: const Icon(
+                                      Icons.edit_rounded,
+                                      size: 14,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -299,6 +362,38 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
+  Future<void> _generateCharacter() async {
+    final prompt = _characterPromptController.text.trim();
+    if (prompt.isEmpty) return;
+
+    setState(() => _isGenerating = true);
+
+    try {
+      const tokenServerUrl = String.fromEnvironment('TOKEN_SERVER_URL');
+      if (tokenServerUrl.isEmpty) return;
+
+      final resp = await http.post(
+        Uri.parse('$tokenServerUrl/generate-character'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'prompt': prompt}),
+      );
+
+      if (resp.statusCode == 200) {
+        final data = jsonDecode(resp.body) as Map<String, dynamic>;
+        final imageB64 = data['image'] as String?;
+        if (imageB64 != null && imageB64.isNotEmpty) {
+          setState(() {
+            _generatedImage = base64Decode(imageB64);
+          });
+        }
+      }
+    } catch (e) {
+      print('[Monti] Character generation failed: $e');
+    } finally {
+      setState(() => _isGenerating = false);
+    }
+  }
+
   Future<void> _playVoiceSample(String emoji) async {
     await _voicePlayer.stop();
     final assetPath = ChildProfile.voiceSampleForEmoji(emoji);
@@ -405,6 +500,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       age: _selectedAge,
       interests: interests,
       emoji: _selectedEmoji,
+      characterName: _characterNameController.text.trim(),
+      characterImage: _generatedImage,
     );
     await ref.read(childProfileProvider.notifier).save(profile);
     if (mounted) context.go('/scenario');

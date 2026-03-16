@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
@@ -8,7 +10,8 @@ class MontyCharacter extends StatefulWidget {
   final MontyState state;
   final double size;
   final String emoji;
-  final double audioLevel; // 0.0 - 1.0, drives talking animation
+  final double audioLevel;
+  final Uint8List? characterImage; // AI-generated character image
 
   const MontyCharacter({
     super.key,
@@ -16,6 +19,7 @@ class MontyCharacter extends StatefulWidget {
     this.size = 200,
     this.emoji = '🐻',
     this.audioLevel = 0.0,
+    this.characterImage,
   });
 
   @override
@@ -160,10 +164,20 @@ class _MontyCharacterState extends State<MontyCharacter>
               ),
             ),
           ),
-          Text(
-            _getFaceEmoji(),
-            style: TextStyle(fontSize: widget.size * 0.5),
-          ),
+          if (widget.characterImage != null)
+            ClipOval(
+              child: Image.memory(
+                widget.characterImage!,
+                width: circleSize,
+                height: circleSize,
+                fit: BoxFit.cover,
+              ),
+            )
+          else
+            Text(
+              _getFaceEmoji(),
+              style: TextStyle(fontSize: widget.size * 0.5),
+            ),
         ],
       ),
     );

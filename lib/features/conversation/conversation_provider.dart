@@ -95,7 +95,7 @@ class ConversationNotifier extends StateNotifier<ConversationState> {
 
     // Build system prompt
     _languageCode = languageCode;
-    _charName = ChildProfile.nameForEmoji(profile.emoji);
+    _charName = profile.displayName;
     _childName = profile.nickname;
     _childAge = profile.age;
     final systemPrompt = SystemPromptBuilder.build(
