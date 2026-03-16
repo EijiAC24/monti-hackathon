@@ -57,6 +57,7 @@ class ConversationNotifier extends StateNotifier<ConversationState> {
   bool _isSpeaking = false; // true while Monty is speaking - mutes mic input to Gemini
   bool _goalDetected = false;
   int _turnId = 0; // Tracks current turn to invalidate stale unmute timers
+  int _completedTurns = 0; // Count completed turns to guard early function calls
   final audioLevel = ValueNotifier<double>(0.0);
   String _languageCode = 'ja';
   String _charName = 'Monty';
@@ -242,6 +243,11 @@ class ConversationNotifier extends StateNotifier<ConversationState> {
 
       case GeminiToolCall(name: final name):
         if (name == 'end_conversation') {
+          // Guard: ignore if conversation hasn't had enough back-and-forth
+          if (_completedTurns < 2) {
+            print('[Monti] Ignoring early end_conversation (only $_completedTurns turns)');
+            break;
+          }
           print('[Monti] Goal achieved via function call! Setting flag.');
           _goalDetected = true;
           // Safety: if turnComplete never arrives, trigger after 8 seconds
@@ -254,7 +260,8 @@ class ConversationNotifier extends StateNotifier<ConversationState> {
         }
 
       case GeminiTurnComplete():
-        print('[Monti] Turn complete');
+        _completedTurns++;
+        print('[Monti] Turn complete (turn #$_completedTurns)');
         _onTurnComplete();
 
       case GeminiInterrupted():

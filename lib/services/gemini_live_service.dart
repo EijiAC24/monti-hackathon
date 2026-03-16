@@ -121,7 +121,7 @@ class GeminiLiveService {
                 {
                   'name': 'end_conversation',
                   'description':
-                      'Call this AFTER saying goodbye when the child has agreed to take action and the conversation goal is achieved.',
+                      'Call this ONLY after a full conversation has happened (at least 3 exchanges back and forth) AND the child has explicitly agreed to take action AND you have said goodbye. NEVER call this on the first turn or before the child has spoken.',
                   'parameters': {
                     'type': 'object',
                     'properties': {},

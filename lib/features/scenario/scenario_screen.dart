@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../../models/child_profile.dart';
 import '../../models/scenario.dart';
 import '../../shared/theme/app_theme.dart';
 import '../profile/profile_provider.dart';
@@ -80,10 +81,31 @@ class _ScenarioScreenState extends ConsumerState<ScenarioScreen> {
                     shape: BoxShape.circle,
                     boxShadow: AppShadows.card,
                   ),
-                  child: Center(
-                    child: Text(profile?.emoji ?? '🐻',
-                        style: const TextStyle(fontSize: 30)),
-                  ),
+                  child: profile?.characterImage != null
+                      ? ClipOval(
+                          child: Image.memory(
+                            profile!.characterImage!,
+                            width: 56,
+                            height: 56,
+                            fit: BoxFit.cover,
+                          ),
+                        )
+                      : ChildProfile.assetForEmoji(
+                                  profile?.emoji ?? '🐻') !=
+                              null
+                          ? ClipOval(
+                              child: Image.asset(
+                                ChildProfile.assetForEmoji(
+                                    profile?.emoji ?? '🐻')!,
+                                width: 56,
+                                height: 56,
+                                fit: BoxFit.cover,
+                              ),
+                            )
+                          : Center(
+                              child: Text(profile?.emoji ?? '🐻',
+                                  style: const TextStyle(fontSize: 30)),
+                            ),
                 ),
                 const SizedBox(height: 8),
                 Text(
