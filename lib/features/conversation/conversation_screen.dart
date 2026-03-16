@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 
 import '../../l10n/app_localizations.dart';
+import '../../models/child_profile.dart';
 import '../../shared/theme/app_theme.dart';
 import '../../shared/widgets/monty_character.dart';
 import '../profile/profile_provider.dart';
@@ -142,8 +143,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
 
     // Celebration screen
     if (state.goalComplete) {
-      final emoji = ref.watch(childProfileProvider)?.emoji ?? '🐻';
-      return _buildCelebration(context, l10n, emoji);
+      final profile = ref.watch(childProfileProvider);
+      return _buildCelebration(context, l10n, profile);
     }
 
     // Only show text bubble for connecting or talking states — not listening/thinking
@@ -249,7 +250,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
 
   /// Celebration screen — Cast Ending technique from detail.design
   Widget _buildCelebration(
-      BuildContext context, AppLocalizations l10n, String emoji) {
+      BuildContext context, AppLocalizations l10n, ChildProfile? profile) {
+    final emoji = profile?.emoji ?? '🐻';
     final floatAnim = Tween<double>(begin: -8, end: 8).animate(
       CurvedAnimation(parent: _floatController, curve: Curves.easeInOut),
     );
@@ -303,8 +305,26 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                               ),
                             ],
                           ),
-                          child: Text(emoji,
-                              style: const TextStyle(fontSize: 96)),
+                          child: profile?.characterImage != null
+                              ? ClipOval(
+                                  child: Image.memory(
+                                    profile!.characterImage!,
+                                    width: 120,
+                                    height: 120,
+                                    fit: BoxFit.cover,
+                                  ),
+                                )
+                              : ChildProfile.assetForEmoji(emoji) != null
+                                  ? ClipOval(
+                                      child: Image.asset(
+                                        ChildProfile.assetForEmoji(emoji)!,
+                                        width: 120,
+                                        height: 120,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    )
+                                  : Text(emoji,
+                                      style: const TextStyle(fontSize: 96)),
                         ),
                       ),
                       const SizedBox(height: 16),
