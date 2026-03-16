@@ -138,10 +138,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                                 fit: BoxFit.cover,
                                               ),
                                             )
-                                          : Center(
-                                              child: Text(_selectedEmoji,
-                                                  style: const TextStyle(fontSize: 44)),
-                                            ),
+                                          : ChildProfile.assetForEmoji(_selectedEmoji) != null
+                                              ? ClipOval(
+                                                  child: Image.asset(
+                                                    ChildProfile.assetForEmoji(_selectedEmoji)!,
+                                                    width: 88,
+                                                    height: 88,
+                                                    fit: BoxFit.cover,
+                                                  ),
+                                                )
+                                              : Center(
+                                                  child: Text(_selectedEmoji,
+                                                      style: const TextStyle(fontSize: 44)),
+                                                ),
                                     ),
                                   ),
                                 ),
@@ -456,8 +465,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       ),
                       child: Column(
                         children: [
-                          Text(emoji,
-                              style: const TextStyle(fontSize: 36)),
+                          ChildProfile.assetForEmoji(emoji) != null
+                              ? ClipOval(
+                                  child: Image.asset(
+                                    ChildProfile.assetForEmoji(emoji)!,
+                                    width: 40,
+                                    height: 40,
+                                    fit: BoxFit.cover,
+                                  ),
+                                )
+                              : Text(emoji,
+                                  style: const TextStyle(fontSize: 36)),
                           const SizedBox(height: 4),
                           Text(
                             name,

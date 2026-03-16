@@ -122,10 +122,33 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen>
                               ),
                             ],
                           ),
-                          child: Center(
-                            child: Text(profile?.emoji ?? '🐻',
-                                style: const TextStyle(fontSize: 80)),
-                          ),
+                          child: profile?.characterImage != null
+                              ? ClipOval(
+                                  child: Image.memory(
+                                    profile!.characterImage!,
+                                    width: 160,
+                                    height: 160,
+                                    fit: BoxFit.cover,
+                                  ),
+                                )
+                              : ChildProfile.assetForEmoji(
+                                          profile?.emoji ?? '🐻') !=
+                                      null
+                                  ? ClipOval(
+                                      child: Image.asset(
+                                        ChildProfile.assetForEmoji(
+                                            profile?.emoji ?? '🐻')!,
+                                        width: 160,
+                                        height: 160,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    )
+                                  : Center(
+                                      child: Text(
+                                          profile?.emoji ?? '🐻',
+                                          style: const TextStyle(
+                                              fontSize: 80)),
+                                    ),
                         ),
                       ),
                     );
@@ -136,7 +159,7 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen>
 
                 // Caller name
                 Text(
-                  ChildProfile.nameForEmoji(profile?.emoji ?? '🐻'),
+                  profile?.displayName ?? 'Monty',
                   style: Theme.of(context)
                       .textTheme
                       .headlineLarge

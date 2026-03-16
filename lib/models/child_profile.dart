@@ -57,6 +57,19 @@ class ChildProfile {
 
   static const availableEmojis = ['🐻', '🐰', '🦁', '🐱', '🐶', '🐼'];
 
+  /// Map emoji to character asset image path
+  static String? assetForEmoji(String emoji) {
+    return switch (emoji) {
+      '🐻' => 'assets/characters/bear.png',
+      '🐰' => 'assets/characters/rabbit.png',
+      '🦁' => 'assets/characters/lion.png',
+      '🐱' => 'assets/characters/cat.png',
+      '🐶' => 'assets/characters/dog.png',
+      '🐼' => 'assets/characters/panda.png',
+      _ => null,
+    };
+  }
+
   /// Map emoji to character name
   static String nameForEmoji(String emoji) {
     return switch (emoji) {

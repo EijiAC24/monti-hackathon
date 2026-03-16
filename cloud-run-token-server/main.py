@@ -77,10 +77,16 @@ def generate_character():
 
         full_prompt = (
             f"Generate an image of: a cute {user_prompt} character. "
-            "Style: flat design, emoji-like, 2D, simple shapes, rounded, "
-            "kawaii, pastel colors, white background, centered, "
-            "no text, no words, single character only, "
-            "children's illustration style."
+            "STRICT STYLE RULES: "
+            "- Flat vector illustration, 2D, no 3D, no shadows, no gradients "
+            "- Solid warm off-white background (#FFFBF5), no patterns, no scenery "
+            "- Single character only, centered, facing forward "
+            "- Chibi/kawaii proportions: big round head, small body, big eyes "
+            "- Soft rounded shapes, thick outlines "
+            "- Warm pastel color palette (orange, peach, mint, sky blue) "
+            "- Friendly happy expression, simple smile "
+            "- No text, no words, no watermarks "
+            "- Children's app icon style, like Apple emoji but cuter"
         )
 
         config = types.GenerateContentConfig(

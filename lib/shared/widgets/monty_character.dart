@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
+import '../../models/child_profile.dart';
 import '../theme/app_theme.dart';
 
 enum MontyState { idle, listening, thinking, talking, happy }
@@ -168,6 +169,15 @@ class _MontyCharacterState extends State<MontyCharacter>
             ClipOval(
               child: Image.memory(
                 widget.characterImage!,
+                width: circleSize,
+                height: circleSize,
+                fit: BoxFit.cover,
+              ),
+            )
+          else if (ChildProfile.assetForEmoji(widget.emoji) != null)
+            ClipOval(
+              child: Image.asset(
+                ChildProfile.assetForEmoji(widget.emoji)!,
                 width: circleSize,
                 height: circleSize,
                 fit: BoxFit.cover,
