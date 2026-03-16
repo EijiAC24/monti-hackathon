@@ -1,7 +1,10 @@
+import 'dart:convert';
+
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:http/http.dart' as http;
 
 import '../../l10n/app_localizations.dart';
 import '../../shared/theme/app_theme.dart';
@@ -66,10 +69,34 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
       return;
     }
 
-    const accessToken = String.fromEnvironment('ACCESS_TOKEN');
-    const projectId = String.fromEnvironment('PROJECT_ID');
+    // Fetch fresh token from Cloud Run token server
+    const tokenServerUrl = String.fromEnvironment('TOKEN_SERVER_URL');
+    // Fallback to dart-define for local dev
+    const fallbackToken = String.fromEnvironment('ACCESS_TOKEN');
+    const fallbackProject = String.fromEnvironment('PROJECT_ID');
     const location = String.fromEnvironment('LOCATION', defaultValue: 'us-central1');
-    if (accessToken.isEmpty || projectId.isEmpty) {
+
+    String accessToken;
+    String projectId;
+
+    if (tokenServerUrl.isNotEmpty) {
+      try {
+        final resp = await http.get(Uri.parse('$tokenServerUrl/token'));
+        if (resp.statusCode != 200) {
+          print('[Monti] Token server error: ${resp.statusCode}');
+          return;
+        }
+        final data = jsonDecode(resp.body) as Map<String, dynamic>;
+        accessToken = data['access_token'] as String;
+        projectId = data['project_id'] as String;
+      } catch (e) {
+        print('[Monti] Token server unreachable: $e');
+        return;
+      }
+    } else if (fallbackToken.isNotEmpty && fallbackProject.isNotEmpty) {
+      accessToken = fallbackToken;
+      projectId = fallbackProject;
+    } else {
       return;
     }
 
