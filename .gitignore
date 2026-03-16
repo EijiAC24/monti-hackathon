@@ -1,3 +1,10 @@
+# Secrets
+.env*
+*.key
+*.pem
+credentials.json
+service-account*.json
+
 # Miscellaneous
 *.class
 *.log

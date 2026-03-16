@@ -41,11 +41,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     try {
       const tokenServerUrl = String.fromEnvironment('TOKEN_SERVER_URL');
+      const appApiKey = String.fromEnvironment('APP_API_KEY');
       if (tokenServerUrl.isEmpty) return;
 
       final resp = await http.post(
         Uri.parse('$tokenServerUrl/generate-character'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          if (appApiKey.isNotEmpty) 'X-API-Key': appApiKey,
+        },
         body: jsonEncode({'prompt': prompt}),
       );
 

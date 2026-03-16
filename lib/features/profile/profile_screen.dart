@@ -195,8 +195,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           height: 48,
                           child: TextField(
                             controller: _nicknameController,
+                            maxLength: 20,
                             style: const TextStyle(fontSize: 16),
                             decoration: InputDecoration(
+                              counterText: '',
                               hintText: l10n.profileNameHint,
                               hintStyle: TextStyle(
                                 color: AppColors.textSecondary.withValues(alpha: 0.6),
@@ -328,8 +330,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           height: 48,
                           child: TextField(
                             controller: _interestsController,
+                            maxLength: 100,
                             style: const TextStyle(fontSize: 16),
                             decoration: InputDecoration(
+                              counterText: '',
                               hintText: l10n.profileInterestsHint,
                               hintStyle: TextStyle(
                                 color: AppColors.textSecondary.withValues(alpha: 0.6),

@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -13,6 +14,10 @@ import '../../shared/widgets/monty_character.dart';
 import '../profile/profile_provider.dart';
 import '../scenario/scenario_screen.dart';
 import 'conversation_provider.dart';
+
+void _log(String msg) {
+  if (kDebugMode) debugPrint(msg);
+}
 
 class ConversationScreen extends ConsumerStatefulWidget {
   const ConversationScreen({super.key});
@@ -72,26 +77,34 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
 
     // Fetch fresh token from Cloud Run token server
     const tokenServerUrl = String.fromEnvironment('TOKEN_SERVER_URL');
+    const appApiKey = String.fromEnvironment('APP_API_KEY');
     // Fallback to dart-define for local dev
     const fallbackToken = String.fromEnvironment('ACCESS_TOKEN');
     const fallbackProject = String.fromEnvironment('PROJECT_ID');
     const location = String.fromEnvironment('LOCATION', defaultValue: 'us-central1');
+
+    final apiHeaders = <String, String>{
+      if (appApiKey.isNotEmpty) 'X-API-Key': appApiKey,
+    };
 
     String accessToken;
     String projectId;
 
     if (tokenServerUrl.isNotEmpty) {
       try {
-        final resp = await http.get(Uri.parse('$tokenServerUrl/token'));
+        final resp = await http.get(
+          Uri.parse('$tokenServerUrl/token'),
+          headers: apiHeaders,
+        );
         if (resp.statusCode != 200) {
-          print('[Monti] Token server error: ${resp.statusCode}');
+          _log('[Monti] Token server error: ${resp.statusCode}');
           return;
         }
         final data = jsonDecode(resp.body) as Map<String, dynamic>;
         accessToken = data['access_token'] as String;
         projectId = data['project_id'] as String;
       } catch (e) {
-        print('[Monti] Token server unreachable: $e');
+        _log('[Monti] Token server unreachable: $e');
         return;
       }
     } else if (fallbackToken.isNotEmpty && fallbackProject.isNotEmpty) {

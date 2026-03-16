@@ -12,6 +12,10 @@ import '../../services/gemini_live_service.dart';
 import '../../services/system_prompt.dart';
 import '../../shared/widgets/monty_character.dart';
 
+void _log(String msg) {
+  if (kDebugMode) debugPrint(msg);
+}
+
 class ConversationState {
   final MontyState montyState;
   final String currentText;
@@ -77,7 +81,7 @@ class ConversationNotifier extends StateNotifier<ConversationState> {
     required Scenario scenario,
     String languageCode = 'ja',
   }) async {
-    print('[Monti] startSession called');
+    _log('[Monti] startSession called');
 
     // Request mic permission
     final granted = await _audio.requestPermission();
@@ -111,7 +115,7 @@ class ConversationNotifier extends StateNotifier<ConversationState> {
     // Safety timer: auto-end after max duration
     _maxTimer?.cancel();
     _maxTimer = Timer(_maxDuration, () {
-      print('[Monti] Max duration reached, ending session');
+      _log('[Monti] Max duration reached, ending session');
       _triggerGoalComplete();
     });
 
@@ -162,10 +166,10 @@ class ConversationNotifier extends StateNotifier<ConversationState> {
   Future<void> _startListening() async {
     final stream = await _audio.startRecording();
     if (stream == null) {
-      print('[Monti] startRecording returned null');
+      _log('[Monti] startRecording returned null');
       return;
     }
-    print('[Monti] Mic started');
+    _log('[Monti] Mic started');
 
     state = state.copyWith(
       montyState: MontyState.listening,
@@ -179,7 +183,7 @@ class ConversationNotifier extends StateNotifier<ConversationState> {
         _gemini.sendAudio(chunk);
         chunkCount++;
         if (chunkCount % 50 == 1) {
-          print('[Monti] Sending audio chunk #$chunkCount (${chunk.length} bytes)');
+          _log('[Monti] Sending audio chunk #$chunkCount (${chunk.length} bytes)');
         }
       }
     });
@@ -196,7 +200,7 @@ class ConversationNotifier extends StateNotifier<ConversationState> {
   void _handleGeminiEvent(GeminiLiveEvent event) {
     switch (event) {
       case GeminiSetupComplete():
-        print('[Monti] Setup complete! Monty speaks first...');
+        _log('[Monti] Setup complete! Monty speaks first...');
         state = state.copyWith(
           isConnected: true,
           montyState: MontyState.thinking,
@@ -245,15 +249,15 @@ class ConversationNotifier extends StateNotifier<ConversationState> {
         if (name == 'end_conversation') {
           // Guard: ignore if conversation hasn't had enough back-and-forth
           if (_completedTurns < 2) {
-            print('[Monti] Ignoring early end_conversation (only $_completedTurns turns)');
+            _log('[Monti] Ignoring early end_conversation (only $_completedTurns turns)');
             break;
           }
-          print('[Monti] Goal achieved via function call! Setting flag.');
+          _log('[Monti] Goal achieved via function call! Setting flag.');
           _goalDetected = true;
           // Safety: if turnComplete never arrives, trigger after 8 seconds
           Future<void>.delayed(const Duration(seconds: 8), () {
             if (_goalDetected) {
-              print('[Monti] Safety trigger: turnComplete not received');
+              _log('[Monti] Safety trigger: turnComplete not received');
               _triggerGoalComplete();
             }
           });
@@ -261,12 +265,12 @@ class ConversationNotifier extends StateNotifier<ConversationState> {
 
       case GeminiTurnComplete():
         _completedTurns++;
-        print('[Monti] Turn complete (turn #$_completedTurns)');
+        _log('[Monti] Turn complete (turn #$_completedTurns)');
         _onTurnComplete();
 
       case GeminiInterrupted():
         // Barge-in: stop playback immediately
-        print('[Monti] Interrupted (barge-in)');
+        _log('[Monti] Interrupted (barge-in)');
         _isSpeaking = false;
         _audio.stopPlayback().then((_) {
           _audio.initPlayer(); // Re-init for next response
@@ -278,7 +282,7 @@ class ConversationNotifier extends StateNotifier<ConversationState> {
         );
 
       case GeminiError(message: final msg):
-        print('[Monti] ERROR: $msg');
+        _log('[Monti] ERROR: $msg');
         state = state.copyWith(errorMessage: msg);
 
       case GeminiDisconnected():
@@ -292,12 +296,12 @@ class ConversationNotifier extends StateNotifier<ConversationState> {
 
   Future<void> _triggerGoalComplete() async {
     if (state.goalComplete) return; // Already triggered
-    print('[Monti] Goal complete!');
+    _log('[Monti] Goal complete!');
     _goalDetected = false;
     _maxTimer?.cancel();
     // finishPlayback is already called by _onTurnComplete, no need to wait again
     _isSpeaking = false;
-    print('[Monti] Showing celebration screen');
+    _log('[Monti] Showing celebration screen');
     state = state.copyWith(
       montyState: MontyState.happy,
       goalComplete: true,
@@ -310,7 +314,7 @@ class ConversationNotifier extends StateNotifier<ConversationState> {
     if (_goalDetected) {
       // Wait for goodbye audio to finish before showing celebration
       final waitMs = _audio.remainingPlaybackMs + 500;
-      print('[Monti] Goal complete! Waiting ${waitMs}ms for goodbye audio');
+      _log('[Monti] Goal complete! Waiting ${waitMs}ms for goodbye audio');
       await Future<void>.delayed(Duration(milliseconds: waitMs));
       _audio.markPlaybackDone();
       _isSpeaking = false;
@@ -325,7 +329,7 @@ class ConversationNotifier extends StateNotifier<ConversationState> {
       // Start mic immediately but keep _isSpeaking=true to mute sending
       // until speaker finishes draining
       final drainMs = _audio.remainingPlaybackMs + 500;
-      print('[Monti] Turn done. Mic now, unmute in ${drainMs}ms');
+      _log('[Monti] Turn done. Mic now, unmute in ${drainMs}ms');
 
       await _stopListening();
       state = state.copyWith(
@@ -342,9 +346,9 @@ class ConversationNotifier extends StateNotifier<ConversationState> {
         if (_turnId == expectedTurn) {
           _audio.markPlaybackDone();
           _isSpeaking = false;
-          print('[Monti] Speaker done, sending mic audio now');
+          _log('[Monti] Speaker done, sending mic audio now');
         } else {
-          print('[Monti] Skipping stale unmute (turn $expectedTurn, now $_turnId)');
+          _log('[Monti] Skipping stale unmute (turn $expectedTurn, now $_turnId)');
         }
       });
     }

@@ -2,7 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/io.dart';
+
+void _log(String msg) {
+  if (kDebugMode) debugPrint(msg);
+}
 
 /// Events emitted by the Gemini Live API session.
 sealed class GeminiLiveEvent {}
@@ -64,7 +69,7 @@ class GeminiLiveService {
     final uri = Uri.parse(
       'wss://$location-aiplatform.googleapis.com/ws/google.cloud.aiplatform.v1beta1.LlmBidiService/BidiGenerateContent',
     );
-    print('[Monti] WS URI: $uri');
+    _log('[Monti] WS URI: $uri');
 
     try {
       _channel = IOWebSocketChannel.connect(
@@ -73,20 +78,20 @@ class GeminiLiveService {
       );
       await _channel!.ready;
       _isConnected = true;
-      print('[Monti] WebSocket connected');
+      _log('[Monti] WebSocket connected');
 
       // Listen for messages
       _channel!.stream.listen(
         _handleMessage,
         onError: (Object error) {
-          print('[Monti] WS error: $error');
+          _log('[Monti] WS error: $error');
           _eventController.add(GeminiError(error.toString()));
           _isConnected = false;
         },
         onDone: () {
           final code = _channel?.closeCode;
           final reason = _channel?.closeReason;
-          print('[Monti] WS closed (code=$code, reason=$reason)');
+          _log('[Monti] WS closed (code=$code, reason=$reason)');
           _isConnected = false;
           _eventController.add(GeminiDisconnected());
         },
@@ -132,9 +137,9 @@ class GeminiLiveService {
           ],
         },
       });
-      print('[Monti] Setup message sent');
+      _log('[Monti] Setup message sent');
     } catch (e) {
-      print('[Monti] Connection failed: $e');
+      _log('[Monti] Connection failed: $e');
       _isConnected = false;
       _eventController.add(GeminiError('Connection failed: $e'));
     }
@@ -201,26 +206,26 @@ class GeminiLiveService {
       } else if (rawMessage is Uint8List) {
         msgStr = utf8.decode(rawMessage);
       } else {
-        print('[Monti] Unknown message type: ${rawMessage.runtimeType}');
+        _log('[Monti] Unknown message type: ${rawMessage.runtimeType}');
         return;
       }
       // Log first 500 chars of message for debugging
       final logLen = msgStr.length > 500 ? 500 : msgStr.length;
-      print('[Monti] WS recv: ${msgStr.substring(0, logLen)}');
+      _log('[Monti] WS recv: ${msgStr.substring(0, logLen)}');
       final data = jsonDecode(msgStr) as Map<String, dynamic>;
 
       // Server error response
       if (data.containsKey('error')) {
         final error = data['error'];
         final errorMsg = error is Map ? '${error['message'] ?? error}' : '$error';
-        print('[Monti] SERVER ERROR: $errorMsg');
+        _log('[Monti] SERVER ERROR: $errorMsg');
         _eventController.add(GeminiError('Server: $errorMsg'));
         return;
       }
 
       // Setup complete
       if (data.containsKey('setupComplete')) {
-        print('[Monti] Setup complete received!');
+        _log('[Monti] Setup complete received!');
         _eventController.add(GeminiSetupComplete());
         return;
       }
@@ -236,7 +241,7 @@ class GeminiLiveService {
 
         // Generation complete (informational, ignore)
         if (serverContent['generationComplete'] == true) {
-          print('[Monti] Generation complete (awaiting turnComplete)');
+          _log('[Monti] Generation complete (awaiting turnComplete)');
           return;
         }
 
@@ -272,7 +277,7 @@ class GeminiLiveService {
               if (functionCall != null) {
                 final name = functionCall['name'] as String? ?? '';
                 final args = functionCall['args'] as Map<String, dynamic>? ?? {};
-                print('[Monti] TOOL CALL: $name');
+                _log('[Monti] TOOL CALL: $name');
                 _eventController.add(GeminiToolCall(name, args));
               }
 
@@ -297,7 +302,7 @@ class GeminiLiveService {
             final callMap = call as Map<String, dynamic>;
             final name = callMap['name'] as String? ?? '';
             final args = callMap['args'] as Map<String, dynamic>? ?? {};
-            print('[Monti] TOOL CALL (top-level): $name');
+            _log('[Monti] TOOL CALL (top-level): $name');
             _eventController.add(GeminiToolCall(name, args));
           }
         }
@@ -305,10 +310,10 @@ class GeminiLiveService {
       }
 
       // Unrecognized message - log it
-      print('[Monti] UNRECOGNIZED MSG keys: ${data.keys.toList()}');
-      print('[Monti] UNRECOGNIZED MSG: $msgStr');
+      _log('[Monti] UNRECOGNIZED MSG keys: ${data.keys.toList()}');
+      _log('[Monti] UNRECOGNIZED MSG: $msgStr');
     } catch (e) {
-      print('[Monti] Parse error: $e');
+      _log('[Monti] Parse error: $e');
       _eventController.add(GeminiError('Parse error: $e'));
     }
   }
